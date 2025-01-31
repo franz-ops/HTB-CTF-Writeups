@@ -1,5 +1,6 @@
 Let's start with nmap:
 
+```
 └──╼ $nmap -A -sC -sV 10.10.11.25
 Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-08-06 21:11 CEST
 Nmap scan report for 10.10.11.25
@@ -78,6 +79,7 @@ SF:quest,67,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nContent-Type:\x20text/p
 SF:lain;\x20charset=utf-8\r\nConnection:\x20close\r\n\r\n400\x20Bad\x20Req
 SF:uest");
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
 
 We notice a web server nginx on port 80, so we check the site (after adding greenhorn.htb to hosts file).
 The website is really simple without anything interesting except for a link to an admin page referred to a CMS: plunk version 4.7.18.
@@ -105,7 +107,9 @@ the file changepass.php in which is defined the change passw function. In it we 
 
 Now we know that the password find before is a SHA512 hash we can use hashcat specifing 1700 (SHA512 mode)
 
+```
 hashcat -m 1700 hashtobecracked /home/francesco/Downloads/rockyou.txt
+```
 
 Aaaand, here we get our password! Let's log in the pluck admin page. Keeping in mind that password are often reused we try to log in ssh with
 the user on the machine (junior), we can search for it in /etc/passwd.
@@ -116,7 +120,9 @@ The passw in the pdf is obfuscated so we need to recover it.
 
 We use pdfimages to extract it to a ppm file. We now use the image extracted with a tool called Depix to recover the pixel effect:
 
+```
 python3 depix.py -p /home/francesco/Downloads/gg-000.ppm -s images/searchimages/debruinseq_notepad_Windows10_closeAndSpaced.png
+```
 
 Trying different searchimages, the previous one seams to have the best result. 
 The output shows the recovered passw, we prompt it to root login and we are in!
